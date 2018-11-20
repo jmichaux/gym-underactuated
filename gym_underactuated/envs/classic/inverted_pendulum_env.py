@@ -230,7 +230,7 @@ class InvertedPendulumEnv(gym.Env):
         """
         Force matrix
         """
-        return np.array([[0], [1]])
+        return np.array([[1], [0]])
 
     def _linearize(self, state):
         """
@@ -248,7 +248,9 @@ class InvertedPendulumEnv(gym.Env):
                         [ll, lr]])
 
     def _B(self, state):
-        Z = np.dot(self._Minv(state))
+        Minv = self._Minv(state)
+        F = self._F()
+        Z = np.dot(Minv, F)
         return np.block([
                         [np.zeros_like(Z)],
                         [Z]
