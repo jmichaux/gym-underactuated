@@ -81,14 +81,14 @@ class PendulumEnv(gym.Env):
             self.viewer = rendering.Viewer(500,500)
             self.viewer.set_bounds(-2.2,2.2,-2.2,2.2)
             rod = rendering.make_capsule(1, .2)
-            rod.set_color(.3, .8, .3)
+            rod.set_color(.88, .4, .4)
             self.pole_transform = rendering.Transform()
             rod.add_attr(self.pole_transform)
             self.viewer.add_geom(rod)
             axle = rendering.make_circle(.05)
-            axle.set_color(0,0,0)
+            axle.set_color(.26, .26, .26)
             self.viewer.add_geom(axle)
-            fname = path.join(path.dirname(__file__), "assets/counterclockwise.png")
+            fname = path.join(path.dirname(__file__), "assets/clockwise.png")
             self.img = rendering.Image(fname, 1., 1.)
             self.imgtrans = rendering.Transform()
             self.img.add_attr(self.imgtrans)
@@ -131,6 +131,95 @@ class PendulumEnv(gym.Env):
         g = self.g
         l = self.l
         return m*g*l
+
+    # def _dyn(self, force):
+    #     """
+    #     Calculate the accelerations
+    #     """
+    #     x, x_dot, theta, theta_dot = self.state
+    #     theta = self._unwrap_angle(theta)
+    #     f = force
+    #     b = self.b
+    #     I = self.inertial
+    #     d0 = self.total_mass
+    #     d1 = self.polemass_length * np.cos(theta)
+    #     d2 = self.polemass_length * np.sin(theta) * theta_dot**2
+    #     d3 = self.polemass_length * np.sin(theta) * self.g
+
+    #     xacc = ((f + d2) *  I + d1 * d3) / (d0 * I - d1**2)
+    #     theaacc = -(d3 + d1 * xacc) / I
+    #     return xacc, thetaacc
+
+    # def _M(self, state):
+    #     """
+    #     Mass matrix
+    #     """
+    #     x, x_dot, theta, theta_dot = state
+    #     theta = self._unwrap_angle(theta)
+    #     I = self.inertial
+    #     d0 = self.total_mass
+    #     d1 = self.polemass_length * np.cos(theta)
+
+    #     mass_matrix = np.array([[d0, d1],
+    #                            [d1, I]])
+    #     return mass_matrix
+
+    # def _Minv(self, state):
+    #     """
+    #     Invert the mass matrix
+    #     """
+    #     return np.linalg.inv(self._M(state))
+
+    # def _C(self, state):
+    #     """
+    #     Coriolis matrix
+    #     """
+    #     x, x_dot, theta, theta_dot = state
+    #     theta = self._unwrap_angle(theta)
+    #     I = self.inertial
+    #     d0 = self.total_mass
+    #     d1 = self.polemass_length * np.cos(theta)
+    #     return
+
+    # def _G(self, state):
+    #     """
+    #     Gravitional matrix
+    #     """
+    #     x, x_dot, theta, theta_dot = state
+    #     d3 = self.polemass_length * np.sin(theta) * self.g
+
+    #     return np.array([0, d3])
+
+    # def _jacG(self, state):
+
+    #     self.gravity_jacobian()
+    #     return 
+
+    # def _F(self):
+    #     """
+    #     Force matrix
+    #     (THIS IS A BAD NAME)
+    #     """
+    #     return np.array([[0], [1]])
+
+    # def _linearize(self, state):
+    #     """
+    #     Linearize the system dynamics around a given point
+    #     """
+    #     return self._A(state), self._B(state)
+
+    # def _A(self, state):
+    #     x, _, theta, _ = state
+    #     Minv = self._Minv(state)
+    #     ul = np.zeros((self.n_coords, self.n_coords))
+    #     ur = np.eye(self.n_coords)
+    #     ll = - np.dot(Minv, self._jacG(state))
+    #     lr = -np.dot(Minv, self._C(state))
+    #     return np.block([[ul, ur],
+    #                     [ll, lr]])
+
+    # def _B(self):
+    #     return
 
 def angle_normalize(x):
     return (((x+np.pi) % (2*np.pi)) - np.pi)
