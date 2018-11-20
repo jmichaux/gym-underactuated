@@ -239,6 +239,9 @@ class InvertedPendulumEnv(gym.Env):
         return self._A(state), self._B(state)
 
     def _A(self, state):
+        """
+        Linearized dynamics
+        """
         Minv = self._Minv(state)
         ul = np.zeros((self.n_coords, self.n_coords))
         ur = np.eye(self.n_coords)
@@ -248,6 +251,9 @@ class InvertedPendulumEnv(gym.Env):
                         [ll, lr]])
 
     def _B(self, state):
+        """
+        Linearized controls
+        """
         Minv = self._Minv(state)
         F = self._F()
         Z = np.dot(Minv, F)
