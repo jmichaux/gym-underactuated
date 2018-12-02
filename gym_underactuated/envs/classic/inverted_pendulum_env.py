@@ -303,20 +303,11 @@ class InvertedPendulumEnv(gym.Env):
     def total_energy(self):
         return
 
-    def kinetic_energ(self, pos, vel):
+    def kinetic_energy(self, pos, vel):
         return
 
     def potential_energy(self, pos):
         return
-
-    def desired_energy(self):
-        return self.potential_energy()
-
-    def desired_energy(self):
-        m = self.m
-        g = self.g
-        l = self.l
-        return m*g*l
 
     def _unwrap_angle(self, theta):
         sign = (theta >=0)*1 - (theta < 0)*1
