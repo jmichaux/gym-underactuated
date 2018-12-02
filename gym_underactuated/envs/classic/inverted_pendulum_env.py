@@ -2,6 +2,10 @@
 Classic cart-pole system implemented by Rich Sutton et al.
 Copied from http://incompleteideas.net/sutton/book/code/pole.c
 permalink: https://perma.cc/C9ZM-652R
+
+Modified from OpenAI to match the cartpole system implemented by
+Russ Tedrake in his awesome book Underactuated Robotics.  Unlike
+Russ' book, here we are using moment of inertia
 """
 
 import math
@@ -19,7 +23,9 @@ class InvertedPendulumEnv(gym.Env):
         'video.frames_per_second' : 50
     }
 
-    def __init__(self, masscart=1.0, masspole=0.1, total_length=1.0, tau=0.02, task="swing"):
+    def __init__(self, masscart=1.0, masspole=0.1, total_length=1.0, tau=0.02, task="balance"):
+        # set task
+        self.task = task
         self.g = self.gravity = 9.8
         self.masscart = masscart
         self.masspole = masspole
@@ -30,10 +36,10 @@ class InvertedPendulumEnv(gym.Env):
         self.force_mag = 10.0
         self.tau = tau
         self.I = (1/12) * self.masspole * (2*self.length)**2
+        self.I = 0
         self.inertial = self.I + self.masspole * self.length**2
         self.b = 0.0
         self.n_coords = 2
-        self.task=task
 
         # Angle at which to fail the episode
         self.theta_threshold_radians = 12 * 2 * math.pi / 360
@@ -60,34 +66,31 @@ class InvertedPendulumEnv(gym.Env):
         return [seed]
 
     def step(self, action):
-        assert self.action_space.contains(action), "%r (%s) invalid"%(action, type(action))
+        # assert self.action_space.contains(action), "%r (%s) invalid"%(action, type(action))
 
         # get state
         x, theta, x_dot, theta_dot = self.state
         theta = self._unwrap_angle(theta)
 
-        # calculate dynamics
-        f = self.force_mag if action==1 else -self.force_mag
-        xacc, thetaacc = self._dyn(f)
+        # clip torque, update dynamics
+        u = np.clip(action, -self.force_mag, self.force_mag)
+        xacc, thetaacc = self._dyn(u)
 
         # integrate
         x  = x + self.tau * x_dot
         x_dot = x_dot + self.tau * xacc
         theta = theta + self.tau * theta_dot + 0.5 * self.tau**2 * thetaacc
+        self._unwrap_angle(theta)
         theta_dot = theta_dot + self.tau * thetaacc
 
         # update state
-        self.state = (x, theta, x_dot, theta_dot)
+        self.state = np.array([x, theta, x_dot,theta_dot])
 
         # check if done
-        if self.task == "balance":
-            done =  x < -self.x_threshold \
-                    or x > self.x_threshold \
-                    or theta < np.pi - self.theta_threshold_radians \
-                    or theta > np.pi + self.theta_threshold_radians
-        else:
-            done =  x < -self.x_threshold \
-                    or x > self.x_threshold
+        done =  x < -self.x_threshold \
+                or x > self.x_threshold \
+                or theta < np.pi - self.theta_threshold_radians \
+                or theta > np.pi + self.theta_threshold_radians
         done = bool(done)
 
         if not done:
@@ -102,16 +105,13 @@ class InvertedPendulumEnv(gym.Env):
             self.steps_beyond_done += 1
             reward = 0.0
 
-        return np.array(self.state), reward, done, {}
+        return self.state, reward, done, {}
 
     def reset(self):
         self.state = self.np_random.uniform(low=-0.05, high=0.05, size=(4,))
         self.steps_beyond_done = None
         if self.task == "balance":
             self.state[1] += np.pi
-            return np.array(self.state)
-        else:
-            self.state = self.state * 0
         return np.array(self.state)
 
     def render(self, mode='human'):
@@ -138,7 +138,7 @@ class InvertedPendulumEnv(gym.Env):
             self.viewer.add_geom(cart)
             l,r,t,b = -polewidth/2,polewidth/2,polelen-polewidth/2,-polewidth/2
             pole = rendering.FilledPolygon([(l,b), (l,t), (r,t), (r,b)])
-            pole.set_color(.88, .4, .4)
+            pole.set_color(.88, .4, .4) 
             self.poletrans = rendering.Transform(translation=(0, axleoffset))
             pole.add_attr(self.poletrans)
             pole.add_attr(self.carttrans)
@@ -184,49 +184,78 @@ class InvertedPendulumEnv(gym.Env):
         thetaacc = -(d3 + d1 * xacc) / I
         return xacc, thetaacc
 
-    def _M(self, state):
+    def _dyn2(self, state, torque):
         """
-        Mass matrix
+        Calculate the accelerations
         """
-        x, theta, x_dot, theta_dot = state
-        theta = self._unwrap_angle(theta)
+        u = torque
+        pos = state[:self.n_coords]
+        vel = state[self.n_coords:]
+
+        Minv = self._Minv(pos)
+        B = self._B()
+        C = self._C(pos, vel)
+        G = self._G(pos)
+        acc = np.dot(Minv, B.dot(u) - C.dot(vel.reshape((2,1))) - G)
+        return acc.flatten()
+
+    def _M(self, pos):
+        """
+        Inertial Mass matrix
+        
+        Arguments
+            pos (list):  
+                x - position of cart
+                th - angle of pole
+        """
+        x, th = pos
+
+        th = self._unwrap_angle(th)
         I = self.inertial
         d0 = self.total_mass
-        d1 = self.polemass_length * np.cos(theta)
+        d1 = self.polemass_length * np.cos(th)
 
         mass_matrix = np.array([[d0, d1],
                                [d1, I]])
         return mass_matrix
 
-    def _Minv(self, state):
+    def _Minv(self, pos):
         """
         Invert the mass matrix
         """
-        return np.linalg.inv(self._M(state))
+        return np.linalg.inv(self._M(pos))
 
-    def _C(self, state):
+    def _C(self, pos, vel):
         """
         Coriolis matrix
         """
-        x, theta, x_dot, theta_dot = state
+        x, theta = pos
+        x_dot, theta_dot = vel
         theta = self._unwrap_angle(theta)
-        d1 = self.polemass_length * theta_dot**2 * np.cos(theta)
+        d1 = self.polemass_length * theta_dot * np.sin(theta)
         return np.array([
                         [0, -d1],
                         [0, 0]
                         ])
 
-    def _G(self, state):
+    def _G(self, pos):
         """
         Gravitional matrix
         """
-        d3 = self.polemass_length *  self.g
-        return anp.array([0, d3 * anp.sin(state[1])])
+        x, theta = pos
+        d3 = self.polemass_length * np.sin(theta) * self.g
 
-    def _jacG(self, state):
-        return jacobian(self._G)(state[2:])
+        return np.array([[0], 
+                        [d3]])
 
-    def _F(self):
+    def _G2(self, pos):
+        """
+        Gravitional matrix
+        """
+        return np.array([[0], 
+                        [self.polemass_length * np.sin(pos[1]) * self.g]])
+
+    def _B(self):
         """
         Force matrix
         """
@@ -236,31 +265,85 @@ class InvertedPendulumEnv(gym.Env):
         """
         Linearize the system dynamics around a given point
         """
-        return self._A(state), self._B(state)
+        pos = state[0:2]
+        return self._Alin(state), self._Blin(pos)
 
-    def _A(self, state):
-        """
-        Linearized dynamics
-        """
-        Minv = self._Minv(state)
+    def _Alin(self, state):
+        pos = state[:self.n_coords]
+        vel = state[self.n_coords:]
         ul = np.zeros((self.n_coords, self.n_coords))
         ur = np.eye(self.n_coords)
-        ll = -np.dot(Minv, self._jacG(state))
-        lr = -np.dot(Minv, self._C(state))
+        Minv = self._Minv(pos)
+        deltaG = self._deltaG()
+        C = self._C(pos, vel)
+        ll = -np.dot(Minv, deltaG)
+        lr = -np.dot(Minv, C)
         return np.block([[ul, ur],
                         [ll, lr]])
 
-    def _B(self, state):
-        """
-        Linearized controls
-        """
-        Minv = self._Minv(state)
-        F = self._F()
-        Z = np.dot(Minv, F)
+    def _Blin(self, pos):
+        Z = np.dot(self._Minv(pos), self._B())
         return np.block([
                         [np.zeros_like(Z)],
                         [Z]
                         ])
+
+    def _deltaG(self):
+        m = self.masspole
+        g = self.g
+        l = self.l
+        return np.array([
+                        [0, 0],
+                        [0, -m*g*l]
+                        ])
+        
+    # def _jacG(self, state):
+
+    #     self.gravity_jacobian()
+    #     return 
+
+
+
+    # def _A(self, state):
+    #     Minv = self._Minv(state)
+    #     ul = np.zeros((self.n_coords, self.n_coords))
+    #     ur = np.eye(self.n_coords)
+    #     ll = - np.dot(Minv, self._jacG(state))
+    #     lr = -np.dot(Minv, self._C(state))
+    #     return np.block([[ul, ur],
+    #                     [ll, lr]])
+
+    # def _B(self, state):
+    #     Z = np.dot(self._Minv(state), self._F)
+    #     return np.block([
+    #                     [np.zeros_like(Z)],
+    #                     [Z]
+    #                     ])
+
+    
+    # def total_energy(self):
+    #     x, th, xdot thdot = self.state
+
+    #     m = self.m
+    #     g = self.g
+    #     l = self.l
+    #     c = np.cos(th)
+    #     return 0.5 * m * l**2 * thdot**2 - m*g*l*c
+
+    def kinetic_energ(self, pos, vel):
+        return
+
+    def potential_energy(self, pos):
+        return
+
+    def desired_energy(self):
+        return self.potential_energy()
+
+    def desired_energy(self):
+        m = self.m
+        g = self.g
+        l = self.l
+        return m*g*l
 
     def _unwrap_angle(self, theta):
         sign = (theta >=0)*1 - (theta < 0)*1
@@ -272,3 +355,5 @@ class InvertedPendulumEnv(gym.Env):
         Integrate the equations of motion
         """
         raise NotImplementedError()
+
+
