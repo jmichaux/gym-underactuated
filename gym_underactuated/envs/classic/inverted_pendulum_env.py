@@ -23,7 +23,7 @@ class InvertedPendulumEnv(gym.Env):
         'video.frames_per_second' : 50
     }
 
-    def __init__(self, masscart=1.0, masspole=0.1, total_length=1.0, tau=0.02, task="balance"):
+    def __init__(self, masscart=1.0, masspole=0.1, total_length=1.0, tau=0.02, task="swing"):
         # set task
         self.task = task
         self.g = self.gravity = 9.8
@@ -42,8 +42,9 @@ class InvertedPendulumEnv(gym.Env):
         self.n_coords = 2
 
         # Angle at which to fail the episode
-        self.theta_threshold_radians = 12 * 2 * math.pi / 360
-        self.x_threshold = 2.4
+        if self.tas == "balance":
+            self.theta_threshold_radians = 12 * 2 * math.pi / 360
+            self.x_threshold = 2.4
 
         # Angle limit set to 2 * theta_threshold_radians so failing observation is still within bounds
         high = np.array([
@@ -65,7 +66,20 @@ class InvertedPendulumEnv(gym.Env):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
 
+    def is_done(self):
+        x, theta = self.state[:2]
+        if self.task == "balance":
+            done =  x < -self.x_threshold \
+                    or x > self.x_threshold \
+                    or theta < np.pi - self.theta_threshold_radians \
+                    or theta > np.pi + self.theta_threshold_radians
+        else:
+            pass
+        return bool(done)
+
+
     def step(self, action):
+        #TODO: assert action is a scalar
         # assert self.action_space.contains(action), "%r (%s) invalid"%(action, type(action))
 
         # get state
@@ -74,7 +88,7 @@ class InvertedPendulumEnv(gym.Env):
 
         # clip torque, update dynamics
         u = np.clip(action, -self.force_mag, self.force_mag)
-        xacc, thetaacc = self._dyn(u)
+        xacc, thetaacc = self._dyn2(np.array([x, theta, x_dot, theta_dot]), u)
 
         # integrate
         x  = x + self.tau * x_dot
@@ -86,12 +100,7 @@ class InvertedPendulumEnv(gym.Env):
         # update state
         self.state = np.array([x, theta, x_dot,theta_dot])
 
-        # check if done
-        done =  x < -self.x_threshold \
-                or x > self.x_threshold \
-                or theta < np.pi - self.theta_threshold_radians \
-                or theta > np.pi + self.theta_threshold_radians
-        done = bool(done)
+        done = self.is_done()
 
         if not done:
             reward = 1.0
@@ -197,16 +206,13 @@ class InvertedPendulumEnv(gym.Env):
         C = self._C(pos, vel)
         G = self._G(pos)
         acc = np.dot(Minv, B.dot(u) - C.dot(vel.reshape((2,1))) - G)
-        return acc.flatten()
+        # return acc.flatten()
+        acc = acc.flatten()
+        return acc[0], acc[1]
 
     def _M(self, pos):
         """
         Inertial Mass matrix
-        
-        Arguments
-            pos (list):  
-                x - position of cart
-                th - angle of pole
         """
         x, th = pos
 
@@ -297,38 +303,9 @@ class InvertedPendulumEnv(gym.Env):
                         [0, -m*g*l]
                         ])
         
-    # def _jacG(self, state):
 
-    #     self.gravity_jacobian()
-    #     return 
-
-
-
-    # def _A(self, state):
-    #     Minv = self._Minv(state)
-    #     ul = np.zeros((self.n_coords, self.n_coords))
-    #     ur = np.eye(self.n_coords)
-    #     ll = - np.dot(Minv, self._jacG(state))
-    #     lr = -np.dot(Minv, self._C(state))
-    #     return np.block([[ul, ur],
-    #                     [ll, lr]])
-
-    # def _B(self, state):
-    #     Z = np.dot(self._Minv(state), self._F)
-    #     return np.block([
-    #                     [np.zeros_like(Z)],
-    #                     [Z]
-    #                     ])
-
-    
-    # def total_energy(self):
-    #     x, th, xdot thdot = self.state
-
-    #     m = self.m
-    #     g = self.g
-    #     l = self.l
-    #     c = np.cos(th)
-    #     return 0.5 * m * l**2 * thdot**2 - m*g*l*c
+    def total_energy(self):
+        return
 
     def kinetic_energ(self, pos, vel):
         return
