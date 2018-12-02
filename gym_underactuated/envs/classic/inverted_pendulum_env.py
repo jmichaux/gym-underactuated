@@ -1,8 +1,4 @@
 """
-Classic cart-pole system implemented by Rich Sutton et al.
-Copied from http://incompleteideas.net/sutton/book/code/pole.c
-permalink: https://perma.cc/C9ZM-652R
-
 Modified from OpenAI to match the cartpole system implemented by
 Russ Tedrake in his awesome book Underactuated Robotics.  Unlike
 Russ' book, here we are using moment of inertia
@@ -23,7 +19,7 @@ class InvertedPendulumEnv(gym.Env):
         'video.frames_per_second' : 50
     }
 
-    def __init__(self, masscart=1.0, masspole=0.1, total_length=1.0, tau=0.02, task="swing"):
+    def __init__(self, masscart=1.0, masspole=0.1, total_length=1.0, tau=0.02, task="balance"):
         # set task
         self.task = task
         self.g = self.gravity = 9.8
@@ -42,9 +38,9 @@ class InvertedPendulumEnv(gym.Env):
         self.n_coords = 2
 
         # Angle at which to fail the episode
-        if self.tas == "balance":
+        if self.task == "balance":
             self.theta_threshold_radians = 12 * 2 * math.pi / 360
-            self.x_threshold = 2.4
+        self.x_threshold = 2.4
 
         # Angle limit set to 2 * theta_threshold_radians so failing observation is still within bounds
         high = np.array([
@@ -271,7 +267,7 @@ class InvertedPendulumEnv(gym.Env):
         """
         Linearize the system dynamics around a given point
         """
-        pos = state[0:2]
+        pos = state[0:self.n_coords]
         return self._Alin(state), self._Blin(pos)
 
     def _Alin(self, state):
