@@ -300,8 +300,10 @@ class InvertedPendulumEnv(gym.Env):
                         ])
         
 
-    def total_energy(self):
-        return
+    def total_energy(self, state):
+        pos = state[:self.n_coords]
+        vel = state[self.n_coords:]
+        return self.kinetic_energy(pos, vel) + self.potential_energy(pos)
 
     def kinetic_energy(self, pos, vel):
         return
