@@ -19,7 +19,7 @@ class InvertedPendulumEnv(gym.Env):
         'video.frames_per_second' : 50
     }
 
-    def __init__(self, masscart=1.0, masspole=0.1, total_length=1.0, tau=0.02, task="balance"):
+    def __init__(self, masscart=1.0, masspole=0.1, total_length=1.0, tau=0.02, task="swingup"):
         # set task
         self.task = task
         self.g = self.gravity = 9.8
@@ -43,6 +43,7 @@ class InvertedPendulumEnv(gym.Env):
         # Angle at which to fail the episode
         if self.task == "balance":
             self.theta_threshold_radians = 12 * 2 * math.pi / 360
+        self.theta_threshold_radians = 12 * 2 * math.pi / 360    
         self.x_threshold = 2.4
 
         # Angle limit set to 2 * theta_threshold_radians so failing observation is still within bounds
@@ -81,30 +82,31 @@ class InvertedPendulumEnv(gym.Env):
                     or theta > np.pi + self.theta_threshold_radians
         else:
             pass
-        return bool(done)
+        # return bool(done)
+        return False
 
     def step(self, action):
         #TODO: assert action is a scalar
         # assert self.action_space.contains(action), "%r (%s) invalid"%(action, type(action))
 
         # get state
-        x, theta, x_dot, theta_dot = self.state
-        theta = self._unwrap_angle(theta)
+        x, th, x_dot, th_dot = self.state
+        theta = self._unwrap_angle(th)
 
         # clip torque, update dynamics
         u = np.clip(action, -self.force_mag, self.force_mag)
-        acc = self._accels(anp.array([x, theta, x_dot, theta_dot, u]))
+        acc = self._accels(anp.array([x, th, x_dot, th_dot, u]))
 
         # integrate
-        xacc, thetaacc = acc[0], acc[1]
-        x  = x + self.tau * x_dot
+        xacc, thacc = acc[0], acc[1]
         x_dot = x_dot + self.tau * xacc
-        theta = theta + self.tau * theta_dot + 0.5 * self.tau**2 * thetaacc
-        theta_dot = theta_dot + self.tau * thetaacc
+        x  = x + self.tau * x_dot
+        th_dot = th_dot + self.tau * thacc
+        th = th + self.tau * th_dot + 0.5 * self.tau**2 * thacc
 
         # update state
-        self._unwrap_angle(theta)
-        self.state = np.array([x, theta, x_dot, theta_dot])
+        self._unwrap_angle(th)
+        self.state = np.array([x, th, x_dot, th_dot])
 
         done = self.is_done()
 
@@ -126,7 +128,6 @@ class InvertedPendulumEnv(gym.Env):
         """
         Calculate the accelerations
         """
-
         force = vec[-1]
         pos = vec[:self.n_coords]
         vel = vec[self.n_coords:-1]
@@ -144,7 +145,6 @@ class InvertedPendulumEnv(gym.Env):
         """
         qd = vec[self.n_coords:-1]
         qdd = self._accels(vec)
-
         return anp.array(list(qd) + list(qdd))
 
     def _M(self, pos):
