@@ -196,11 +196,11 @@ class InvertedPendulumEnv(gym.Env):
         """
         Linearize the dynamics by first order Taylor expansion
         """
-        F0 = self._F(vec)
+        f0 = self._F(vec)
         arr = self.jacobian(vec)
         A = arr[:, :-1]
         B = arr[:, -1].reshape((2 * self.n_coords, 1))
-        return F0, A, B
+        return f0, A, B
 
     def _Minv(self, pos):
         """
