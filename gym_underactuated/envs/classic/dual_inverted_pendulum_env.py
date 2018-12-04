@@ -47,7 +47,7 @@ class DualInvertedPendulumEnv(gym.Env):
 
         # Other params
         self.total_mass = (self.masscart + self.m1 + self.m2)
-        self.force_mag = 10.0
+        self.force_mag = 15.0
         self.dt = 0.02  # seconds between state updates
         self.n_coords = 3
 
@@ -56,6 +56,7 @@ class DualInvertedPendulumEnv(gym.Env):
 
         # Angle at which to fail the episode
         self.theta_threshold_radians = 12 * 2 * math.pi / 360
+        self.theta_threshold_radians = np.radians(45)
         self.x_threshold = 2.40
 
         # Angle limit set to 2 * theta_threshold_radians so failing observation is still within bounds
@@ -297,7 +298,8 @@ class DualInvertedPendulumEnv(gym.Env):
             # pole 2
             l,r,t,b = -polewidth/2,polewidth/2,polelen_2-polewidth/2,-polewidth/2
             pole2 = rendering.FilledPolygon([(l,b), (l,t), (r,t), (r,b)])
-            pole2.set_color(0.38, 0.85705882, 0.38)
+            # pole2.set_color(0.38, 0.85705882, 0.38)
+            pole2.set_color(0.47, 0.62, 0.8)
             self.pole2_trans = rendering.Transform(translation=(0, axleoffset))
             pole2.add_attr(self.pole2_trans)
             pole2.add_attr(self.carttrans)
