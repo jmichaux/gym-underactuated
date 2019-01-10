@@ -1,5 +1,4 @@
 """
-Modification of the Classic dual inverted pendulum system implemented by Kent H. Lundberg et al.
 Code adopted from OpenAI Gym implementation
 """
 
